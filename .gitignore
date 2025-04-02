@@ -3,3 +3,6 @@ Dataset/
 
 # ignore the venv file
 .venv/
+
+#ignore output
+output/
