@@ -6,6 +6,7 @@ from utils import *
 BASE_DIR = os.getcwd()
 TRAIN_DIR = os.path.join(BASE_DIR,"Dataset/Train") 
 TEST_DIR = os.path.join(BASE_DIR,"Dataset/Test") 
+MYSEG = False
 print(BASE_DIR,TRAIN_DIR,TEST_DIR)
 
 
@@ -16,7 +17,7 @@ for x in os.listdir(TRAIN_DIR):
     folder_path = os.path.join(TRAIN_DIR,x)
     
     if os.path.isdir(folder_path):
-        new_row = compute_features(folder_path,x)
+        new_row = compute_features(folder_path,x,MYSEG)
         df = pd.concat([df, new_row], ignore_index=True)
 
 # now add meta data  Height and Weight
@@ -27,6 +28,11 @@ df = df.merge(to_add,on="Id",how = "right")
 
 output_col = ["Id","Category"]
 output_df = metaData[output_col]
-output_df.to_csv("TrainningOutput_Dataset.csv")
-# save as csv the trainning dataset.
-df.to_csv("TrainningInput_Dataset.csv")
+if MYSEG : 
+    output_df.to_csv("TrainningOutput_Dataset_myseg.csv")
+    # save as csv the trainning dataset.
+    df.to_csv("TrainningInput_Dataset_myseg.csv")
+else : 
+    output_df.to_csv("TrainningOutput_Dataset.csv")
+    # save as csv the trainning dataset.
+    df.to_csv("TrainningInput_Dataset.csv")
