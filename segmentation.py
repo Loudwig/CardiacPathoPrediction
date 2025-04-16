@@ -231,10 +231,10 @@ def debug_one(file_name, slice_index):
 
 
 # To evaluate on all subjects in the Train folder:
-BASE_DIR = os.getcwd()
-TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
-total_error = evaluate_my_seg_total(TRAIN_DIR)
-print("Mean dice over the trainning:", total_error)
+# BASE_DIR = os.getcwd()
+# TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+# total_error = evaluate_my_seg_total(TRAIN_DIR)
+# print("Mean dice over the trainning:", total_error)
 
 # To debug a single file and slice:
 #debug_error = debug_one("/Users/rplanchon/Documents/telecom/IMA/S2/IMA205/Challenge/CardiacPathoPrediction/Dataset/Train/069/069_ES_SEG.nii", 0)
