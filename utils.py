@@ -74,4 +74,19 @@ def add_ratio_features(df:pd.DataFrame):
             # Attention à la division par zéro
             df[new_col_name] = df[col1] / df[col2].replace(0, float('nan'))
 
+def augment_data(X,y, noise_factor=0.01):
+    # Function that augment the data set by adding noising data
     
+    # Compute the standard deviation of each feature
+    std_devs = X.std(axis=0)
+    
+    # Add Gaussian noise to each feature based on its standard deviation
+    noise = np.random.normal(loc=0, scale=noise_factor * std_devs, size=X.shape)
+    
+    # Create the noised dataset
+    X_noisy = X + noise
+    
+    # Concatenate the original and noised data for augmentation
+    X_augmented = pd.concat([X, pd.DataFrame(X_noisy, columns=X.columns)], ignore_index=True)
+    y_augmented = pd.concat([y,y])
+    return X_noisy,y

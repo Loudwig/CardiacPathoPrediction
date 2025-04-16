@@ -9,6 +9,24 @@ from skimage import measure
 from skimage.measure import label, regionprops
 from matplotlib.patches import Circle
 
+
+def compute_dice_metric(true_seg,pred_seg,label = 3):
+    # Create binary masks for the specific label
+    true_seg_binary = (true_seg == label).astype(np.uint8)  # Mask for label in seg1
+    pred_seg_binary = (pred_seg == label).astype(np.uint8)  # Mask for label in seg2
+
+    # Compute the intersection and total sum
+    intersection = np.sum(true_seg_binary * pred_seg_binary)  # Sum of element-wise multiplication
+    total_sum = np.sum(true_seg_binary) + np.sum(pred_seg_binary)
+
+    # Handle edge case to avoid dividing by zero
+    if total_sum == 0:
+        return 1.0 if np.all(true_seg_binary == pred_seg_binary) else 0.0
+
+    # Calculate the Dice coefficient
+    dice = 2.0 * intersection / total_sum
+    return dice
+  
 def flood_fill(matrix, seed, new_label, boundary_label, max_dist):
     """
     Performs flood filling on `matrix` from seed until reaching cells with values in boundary_label
@@ -104,6 +122,7 @@ def my_seg(seg_data):
             new_slice[mask] = 3
         
         new_seg_data[:, :, s] = new_slice
+        
     
     return new_seg_data
 
@@ -122,7 +141,7 @@ def evaluate_my_seg_one(file_list, index):
     Returns:
       error: Total error (sum over all slices and files) computed as the number of differing pixels.
     """
-    error = 0
+    error = []
     for file_name in file_list:
         seg_nii = nibabel.load(file_name)
         seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
@@ -136,11 +155,12 @@ def evaluate_my_seg_one(file_list, index):
                 continue
             true_seg = seg_data[:, :, s].copy()
             new_seg_slice = new_seg[:, :, s]
-            E = np.sum(new_seg_slice != true_seg)
-            if E > 0:
-                print(f"Error at slice: {s}, file: {file_name}: {E} differing pixels")
-            error += E
-    return error
+            
+            # Here compute the dice metric : 
+            E = compute_dice_metric(true_seg,new_seg_slice)
+            # E = np.sum(new_seg_slice != true_seg)
+            error.append(E)
+    return np.sum(error)/len(error)
 
 def evaluate_my_seg_total(root_train_folder_path):
     """
@@ -211,10 +231,10 @@ def debug_one(file_name, slice_index):
 
 
 # To evaluate on all subjects in the Train folder:
-#BASE_DIR = os.getcwd()
-#TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
-#total_error = evaluate_my_seg_total(TRAIN_DIR)
-#print("Total error over all subjects:", total_error)
+BASE_DIR = os.getcwd()
+TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+total_error = evaluate_my_seg_total(TRAIN_DIR)
+print("Mean dice over the trainning:", total_error)
 
 # To debug a single file and slice:
 #debug_error = debug_one("/Users/rplanchon/Documents/telecom/IMA/S2/IMA205/Challenge/CardiacPathoPrediction/Dataset/Train/069/069_ES_SEG.nii", 0)
