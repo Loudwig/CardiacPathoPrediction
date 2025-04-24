@@ -87,3 +87,52 @@ def augment_data(X, noise_factor=0.01):
     X_noisy = X + noise
     
     return X_noisy
+
+
+import numpy as np
+from sklearn.base import BaseEstimator, TransformerMixin
+
+class GaussianNoiseInjector(BaseEstimator, TransformerMixin):
+    """
+    Injects Gaussian noise into features, proportionally to each feature's std-dev.
+    
+    Parameters
+    ----------
+    noise_factor : float, default=0.01
+        Scale of the noise as a fraction of each feature’s standard deviation.
+    random_state : int or None, default=None
+        Seed for reproducible noise.
+    """
+    def __init__(self, noise_factor=0.01, random_state=None):
+        self.noise_factor = noise_factor
+        self.random_state = random_state
+
+    def fit(self, X, y=None):
+        # nothing to learn, but store RNG
+        self._rng = np.random.RandomState(self.random_state)
+        return self
+
+    def transform(self, X):
+        # work on numpy arrays (or convert DataFrame→array, then back)
+        is_df = hasattr(X, "values")
+        if is_df:
+            cols = X.columns
+            idx  = X.index
+            arr  = X.values
+        else:
+            arr = np.asarray(X)
+        
+        # compute std per feature
+        stds = arr.std(axis=0)
+        # sample noise
+        noise = self._rng.normal(
+            loc=0,
+            scale=self.noise_factor * stds,
+            size=arr.shape
+        )
+        X_noisy = arr + noise
+        
+        if is_df:
+            return type(X)(X_noisy, columns=cols, index=idx)
+        else:
+            return X_noisy
