@@ -17,8 +17,17 @@ def CreateDataset(Train = True) :
     
     if not MYSEG and not Train: 
         print("You must activate my seg if you want to create testing dataset")
-    else : 
-        df = pd.DataFrame(columns=["Id",  "ED_RV_volume",  "ED_LV_volume",  "ED_MY_volume",  "ES_RV_volume"  ,"ES_LV_volume"  ,"ES_MY_volume"])
+    else :
+        cols = [
+        "Id",
+        "ED_RV_vol",   "ED_RV_border",
+        "ED_LV_vol",   "ED_LV_border",
+        "ED_MY_vol",   "ED_MY_border",
+        "ES_RV_vol",   "ES_RV_border",
+        "ES_LV_vol",   "ES_LV_border",
+        "ES_MY_vol",   "ES_MY_border",
+    ]
+        df = pd.DataFrame(columns=cols) 
 
         if Train : 
             
@@ -41,13 +50,13 @@ def CreateDataset(Train = True) :
             output_df.drop(columns=output_df.columns[0],axis=1,inplace=True)
 
             if MYSEG : 
-                output_df.to_csv("TrainningOutput_Dataset_myseg.csv")
+                output_df.to_csv("TrainningOutput_Dataset_myseg_area.csv")
                 # save as csv the trainning dataset.
-                df.to_csv("TrainningInput_Dataset_myseg.csv")
+                df.to_csv("TrainningInput_Dataset_myseg_area.csv")
             else : 
-                output_df.to_csv("TrainningOutput_Dataset.csv")
+                output_df.to_csv("TrainningOutput_Dataset_area.csv")
                 # save as csv the trainning dataset.
-                df.to_csv("TrainningInput_Dataset.csv")
+                df.to_csv("TrainningInput_Dataset_area.csv")
         else : 
             for x in os.listdir(TEST_DIR): 
                 folder_path = os.path.join(TEST_DIR,x)
@@ -65,6 +74,6 @@ def CreateDataset(Train = True) :
 
             if MYSEG : 
                 # save as csv the trainning dataset.
-                df.to_csv("TestingInput_Dataset_myseg.csv")
+                df.to_csv("TestingInput_Dataset_myseg_area.csv")
 
-CreateDataset(Train = False)
+CreateDataset(Train = True)

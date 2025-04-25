@@ -49,7 +49,7 @@ def compute_volume_features(folder_path,index,myseg = False):
 
     DIR_SEGED = os.path.join(folder_path,file_segED)
     DIR_SEGES = os.path.join(folder_path,file_segES)
-    df = process_file([DIR_SEGED,DIR_SEGES],index,myseg)
+    df = process_file_bis([DIR_SEGED,DIR_SEGES],index,myseg)
     return df   
 
 
@@ -73,7 +73,89 @@ def add_ratio_features(df:pd.DataFrame):
             new_col_name = f"{col1}_div_{col2}"
             # Attention à la division par zéro
             df[new_col_name] = df[col1] / df[col2].replace(0, float('nan'))
+            if df[col2].any() == 0 : 
+                print(col2)
 
+import nibabel
+import numpy as np
+import pandas as pd
+from skimage.segmentation import find_boundaries
+from segmentation import my_seg  # or however you import your custom seg
+
+def count_segmentation_border(mask, label=None, connectivity=1, mode='outer'):
+    """
+    Count border voxels of `label` in `mask`.
+    """
+    # build a binary mask of the region
+    if label is None:
+        fg = mask != 0
+    else:
+        fg = (mask == label)
+    # find boundary pixels
+    border = find_boundaries(fg, connectivity=connectivity, mode=mode)
+    return int(np.count_nonzero(border))
+
+def process_file_bis(file_list, index, myseg=False):
+    """
+    For a pair of (ED, ES) segmentation files, compute:
+      - volumes (voxel counts) for RV=1, LV=3, MYO=2
+      - border counts for each of those labels
+    Returns a one-row DataFrame with columns:
+      Id,
+      ED_RV_vol, ED_RV_border,
+      ED_LV_vol, ED_LV_border,
+      ED_MY_vol, ED_MY_border,
+      ES_RV_vol, ES_RV_border,
+      ES_LV_vol, ES_LV_border,
+      ES_MY_vol, ES_MY_border
+    """
+    cols = [
+        "Id",
+        "ED_RV_vol",   "ED_RV_border",
+        "ED_LV_vol",   "ED_LV_border",
+        "ED_MY_vol",   "ED_MY_border",
+        "ES_RV_vol",   "ES_RV_border",
+        "ES_LV_vol",   "ES_LV_border",
+        "ES_MY_vol",   "ES_MY_border",
+    ]
+    df = pd.DataFrame(columns=cols)
+
+    # placeholders
+    rec = {c: 0 for c in cols}
+    rec["Id"] = int(index)
+
+    for phase_idx, file_name in enumerate(file_list):
+        # load segmentation
+        img      = nibabel.load(file_name)
+        seg_data = np.asanyarray(img.dataobj, dtype=np.uint8)
+        if myseg:
+            seg_data = my_seg(seg_data)
+
+        # for each label, count voxels and border voxels
+        for lbl, short in [(1, "RV"), (3, "LV"), (2, "MY")]:
+            count = int((seg_data == lbl).sum())
+            border_count = count_segmentation_border(seg_data, label=lbl)
+
+            prefix = "ED" if phase_idx == 0 else "ES"
+            rec[f"{prefix}_{short}_vol"]    = count
+            rec[f"{prefix}_{short}_border"] = border_count
+
+    # append to DataFrame
+    df.loc[len(df)] = rec
+    return df
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################################################################################################
 def augment_data(X, noise_factor=0.01):
     # Function that augment the data set by adding noising data
 
@@ -136,3 +218,33 @@ class GaussianNoiseInjector(BaseEstimator, TransformerMixin):
             return type(X)(X_noisy, columns=cols, index=idx)
         else:
             return X_noisy
+
+
+
+from imblearn import FunctionSampler
+
+def noise_oversample(X, y, noise_factor=0.05, random_state=None):
+    rng   = np.random.RandomState(random_state)
+    stds  = X.std(axis=0)
+    noise = rng.normal(0, noise_factor * stds, size=X.shape)
+    X_noisy = X + noise
+    X_res = np.vstack([X, X_noisy])
+    y_res = np.concatenate([y, y])
+    return X_res, y_res
+
+noise_sampler = FunctionSampler(func=noise_oversample)
+
+### param grid example 
+
+# param_grid = {
+#     'dataAugment__kw_args' : [
+#         {'noise_factor': 0.01},
+#         {'noise_factor': 0.02},
+#         {'noise_factor': 0.10},
+#         ],
+#     'classifier__n_estimators': [100],
+#     'classifier__max_features': ['sqrt'],
+#     'classifier__max_depth': [5],
+#     'classifier__min_samples_split': [2],
+#     'classifier__min_samples_leaf': [2],
+# }
