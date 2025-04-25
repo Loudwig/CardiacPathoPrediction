@@ -145,32 +145,6 @@ def process_file_bis(file_list, index, myseg=False):
     return df
 
 
-
-
-
-
-
-
-
-
-
-
-######################################################################################################################################
-def augment_data(X, noise_factor=0.01):
-    # Function that augment the data set by adding noising data
-
-    # Compute the standard deviation of each feature
-    std_devs = X.std(axis=0)
-    
-    # Add Gaussian noise to each feature based on its standard deviation
-    noise = np.random.normal(loc=0, scale=noise_factor * std_devs, size=X.shape)
-    
-    # Create the noised dataset
-    X_noisy = X + noise
-    
-    return X_noisy
-
-
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
