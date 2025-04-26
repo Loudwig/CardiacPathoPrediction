@@ -3,42 +3,45 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import numpy as np
-import numpy as np
 from segmentation import *
 import itertools
+import nibabel
+from skimage.segmentation import find_boundaries
+from segmentation import my_seg  # or however you import your custom seg
 
-def process_file(file_list,index,myseg):
-    # Take for argument the name of both segmentations, in the right order ED then ES !
-    df = pd.DataFrame(columns=["Id","ED_RV_volume","ED_LV_volume","ED_MY_volume","ES_RV_volume","ES_LV_volume","ES_MY_volume"])
-    for ind,file_name in enumerate(file_list) :
-        seg_nii = nibabel.load(file_name)
-        seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
-        if myseg : 
-            print("utilisation de ma segmentation")
-            seg_data = my_seg(seg_data)
-        labels, counts = np.unique(seg_data, return_counts=True)
 
-        for label, count in zip(labels, counts):
-            if ind ==0 :
-                if label==1:
-                    ED_RV_volume = count
-                elif label==3 : 
-                    ED_LV_volume = count
-                elif label ==2:
-                    ED_MY_volume = count
-            elif ind ==1 :
-                if label==1:
-                    ES_RV_volume = count
-                elif label==3 : 
-                    ES_LV_volume = count
-                elif label ==2:
-                    ES_MY_volume = count
-    df.loc[len(df)] = [int(index),ED_RV_volume,ED_LV_volume,ED_MY_volume,ES_RV_volume,ES_LV_volume,ES_MY_volume]   
-    # df["RV_DIFF"] = abs(df["ED_RV_volume"] - df["ES_RV_volume"])
-    # df["LV_DIFF"] = abs(df["ED_LV_volume"] - df["ES_LV_volume"])
-    # df["MY_DIFF"] = abs(df["ED_MY_volume"] - df["ES_MY_volume"])
-    return df
+
+# def process_file(file_list,index,myseg):
+#     # Take for argument the name of both segmentations, in the right order ED then ES !
+#     df = pd.DataFrame(columns=["Id","ED_RV_volume","ED_LV_volume","ED_MY_volume","ES_RV_volume","ES_LV_volume","ES_MY_volume"])
+#     for ind,file_name in enumerate(file_list) :
+#         seg_nii = nibabel.load(file_name)
+#         seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
+#         if myseg : 
+#             print("utilisation de ma segmentation")
+#             seg_data = my_seg(seg_data)
+#         labels, counts = np.unique(seg_data, return_counts=True)
+
+#         for label, count in zip(labels, counts):
+#             if ind ==0 :
+#                 if label==1:
+#                     ED_RV_volume = count
+#                 elif label==3 : 
+#                     ED_LV_volume = count
+#                 elif label ==2:
+#                     ED_MY_volume = count
+#             elif ind ==1 :
+#                 if label==1:
+#                     ES_RV_volume = count
+#                 elif label==3 : 
+#                     ES_LV_volume = count
+#                 elif label ==2:
+#                     ES_MY_volume = count
+#     df.loc[len(df)] = [int(index),ED_RV_volume,ED_LV_volume,ED_MY_volume,ES_RV_volume,ES_LV_volume,ES_MY_volume]   
+#     # df["RV_DIFF"] = abs(df["ED_RV_volume"] - df["ES_RV_volume"])
+#     # df["LV_DIFF"] = abs(df["ED_LV_volume"] - df["ES_LV_volume"])
+#     # df["MY_DIFF"] = abs(df["ED_MY_volume"] - df["ES_MY_volume"])
+#     return df
 
 
 def compute_volume_features(folder_path,index,myseg = False):
@@ -52,35 +55,6 @@ def compute_volume_features(folder_path,index,myseg = False):
     df = process_file_bis([DIR_SEGED,DIR_SEGES],index,myseg)
     return df   
 
-
-def compute_body_surface_area(height,weight): 
-    # This is a formula I found online to compute body_surface area
-    return 0.007184 * (height**0.725 )* (weight**0.425)
-
-def add_body_surface_area_feature(df : pd.DataFrame ,name_column_height = "Height",name_column_weight = "Weight"):
-    if (name_column_height and name_column_weight in df.columns) and ("body_surface" not in df.columns)  :
-        df["body_surface"] = compute_body_surface_area(df[name_column_height],df[name_column_weight])
-        print("body surface are feature added modified")
-    else : 
-        print("please provide a dataframe with a height and weight feature")
-    
-    
-def add_ratio_features(df:pd.DataFrame):
-    # This function will compute all the possible ratios.. 
-    # Pour chaque paire de colonnes (A, B), on calcule A / B
-    for col1, col2 in itertools.product(df.columns, repeat=2):
-        if col1 != col2:
-            new_col_name = f"{col1}_div_{col2}"
-            # Attention à la division par zéro
-            df[new_col_name] = df[col1] / df[col2].replace(0, float('nan'))
-            if df[col2].any() == 0 : 
-                print(col2)
-
-import nibabel
-import numpy as np
-import pandas as pd
-from skimage.segmentation import find_boundaries
-from segmentation import my_seg  # or however you import your custom seg
 
 def count_segmentation_border(mask, label=None, connectivity=1, mode='outer'):
     """
@@ -145,80 +119,3 @@ def process_file_bis(file_list, index, myseg=False):
     return df
 
 
-import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin
-
-class GaussianNoiseInjector(BaseEstimator, TransformerMixin):
-    """
-    Injects Gaussian noise into features, proportionally to each feature's std-dev.
-    
-    Parameters
-    ----------
-    noise_factor : float, default=0.01
-        Scale of the noise as a fraction of each feature’s standard deviation.
-    random_state : int or None, default=None
-        Seed for reproducible noise.
-    """
-    def __init__(self, noise_factor=0.01, random_state=None):
-        self.noise_factor = noise_factor
-        self.random_state = random_state
-
-    def fit(self, X, y=None):
-        # nothing to learn, but store RNG
-        self._rng = np.random.RandomState(self.random_state)
-        return self
-
-    def transform(self, X):
-        # work on numpy arrays (or convert DataFrame→array, then back)
-        is_df = hasattr(X, "values")
-        if is_df:
-            cols = X.columns
-            idx  = X.index
-            arr  = X.values
-        else:
-            arr = np.asarray(X)
-        
-        # compute std per feature
-        stds = arr.std(axis=0)
-        # sample noise
-        noise = self._rng.normal(
-            loc=0,
-            scale=self.noise_factor * stds,
-            size=arr.shape
-        )
-        X_noisy = arr + noise
-        
-        if is_df:
-            return type(X)(X_noisy, columns=cols, index=idx)
-        else:
-            return X_noisy
-
-
-
-from imblearn import FunctionSampler
-
-def noise_oversample(X, y, noise_factor=0.05, random_state=None):
-    rng   = np.random.RandomState(random_state)
-    stds  = X.std(axis=0)
-    noise = rng.normal(0, noise_factor * stds, size=X.shape)
-    X_noisy = X + noise
-    X_res = np.vstack([X, X_noisy])
-    y_res = np.concatenate([y, y])
-    return X_res, y_res
-
-noise_sampler = FunctionSampler(func=noise_oversample)
-
-### param grid example 
-
-# param_grid = {
-#     'dataAugment__kw_args' : [
-#         {'noise_factor': 0.01},
-#         {'noise_factor': 0.02},
-#         {'noise_factor': 0.10},
-#         ],
-#     'classifier__n_estimators': [100],
-#     'classifier__max_features': ['sqrt'],
-#     'classifier__max_depth': [5],
-#     'classifier__min_samples_split': [2],
-#     'classifier__min_samples_leaf': [2],
-# }
