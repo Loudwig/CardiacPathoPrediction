@@ -14,39 +14,32 @@ class GaussianNoiseInjector(BaseEstimator, TransformerMixin):
         self.noise_factor = noise_factor
 
     def fit(self, X, y=None):
-        # nothing to learn, but store RNG
-        self._rng = np.random.RandomState()
         return self
 
     def transform(self, X):
-        # work on numpy arrays (or convert DataFrame→array, then back)
-        is_df = hasattr(X, "values")
-        if is_df:
-            cols = X.columns
-            idx  = X.index
-            arr  = X.values
-        else:
-            arr = np.asarray(X)
+        
+        cols = X.columns
+        idx  = X.index
+        val  = X.values
         
         # compute std per feature
-        stds = arr.std(axis=0)
+        stds = val.std(axis=0)
         # sample noise
-        noise = self._rng.normal(
+        noise = np.random.normal(
             loc=0,
             scale=self.noise_factor * stds,
-            size=arr.shape
+            size=val.shape
         )
-        X_noisy = arr + noise
+        X_noisy = val + noise
         # clip to 0 bc we min max after
-        if is_df:
-            return type(X)(X_noisy, columns=cols, index=idx)
-        else:
-            return X_noisy
+        
+        return pd.DataFrame(X_noisy, columns=cols, index=idx)
+        
 
 class HighCorrelationDropper(BaseEstimator, TransformerMixin):
     """Remove one of each pair of highly correlated features (|p| ≥ ``threshold``)."""
 
-    def __init__(self, threshold: float = 0.90, method: str = "pearson"):
+    def __init__(self, threshold: float = 0.98, method: str = "pearson"):
         self.threshold = threshold
         self.method = method
 

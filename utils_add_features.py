@@ -32,7 +32,7 @@ def add_ratio_features(df:pd.DataFrame,columns_to_exclude : list[str]=None):
     
     # Pour chaque combinaison (A, B), on calcule A / B.
     # On ne calcule pas A/B et B/A. Ce choix sera détaillé dans le rapport
-    for col1, col2 in itertools.combinations(cols_to_compute, 2):
+    for col1, col2 in itertools.product(cols_to_compute,repeat=2):
         if col1 != col2:
             new_col_name = f"{col1}_div_{col2}"
             # division par zéro
@@ -46,9 +46,9 @@ def add_specific_ratio(df,col1,col2) :
         df[new_col_name] =  df[col1] / df[col2].replace(0, float('nan'))
     else : 
         print("columns not in dataframe")
-                    
 
-def clean_features(df: pd.DataFrame) -> pd.DataFrame:
+
+def clean_features(df: pd.DataFrame,train = True) -> pd.DataFrame:
 
     """
     Utilize the function above to augment the orignal dataset with other features.
@@ -87,9 +87,8 @@ def clean_features(df: pd.DataFrame) -> pd.DataFrame:
         ("ES_MY_vol", "ES_MY_border"),
     ]:
         add_specific_ratio(df, num, den)
-
-    # 4) drop raw borders
-    df.drop(columns=borders, errors="ignore", inplace=True)
-    
-    #print("Finished adding feature\n")
+        
+    df.drop(columns=borders + ["body_surface","ES_LV_vol_div_ES_MY_vol"], errors="ignore", inplace=True)
+    # df.drop(columns=["ED_MY_vol_div_ES_RV_vol"],inplace = True) 
     return df
+
