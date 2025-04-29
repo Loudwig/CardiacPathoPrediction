@@ -8,7 +8,9 @@ from scipy.ndimage import binary_fill_holes
 from skimage import measure
 from skimage.measure import label, regionprops
 from matplotlib.patches import Circle
-
+import nibabel as nib
+import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 
 def compute_dice_metric(true_seg,pred_seg,label = 3):
     # Create binary masks for the specific label
@@ -92,6 +94,7 @@ def my_seg(seg_data):
         
         # If filling doesn't add extra pixels, use the backup procedure with contour extraction.
         if np.sum(filled) == np.sum(binary_seg):
+          
             labeled_binary_seg = label(binary_seg)
             props = regionprops(labeled_binary_seg)
             if not props:
@@ -142,6 +145,9 @@ def evaluate_my_seg_one(file_list, index):
       error: Total error (sum over all slices and files) computed as the number of differing pixels.
     """
     error = []
+    worst_error = []
+    # N the total number of slices
+    N = 0
     for file_name in file_list:
         seg_nii = nibabel.load(file_name)
         seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
@@ -150,6 +156,7 @@ def evaluate_my_seg_one(file_list, index):
         new_seg = my_seg(seg_data)
         
         # Evaluate error slice by slice (only for slices containing myocardium).
+        N += seg_data.shape[2]
         for s in range(seg_data.shape[2]):
             if 2 not in np.unique(seg_data[:, :, s]):
                 continue
@@ -159,8 +166,10 @@ def evaluate_my_seg_one(file_list, index):
             # Here compute the dice metric : 
             E = compute_dice_metric(true_seg,new_seg_slice)
             # E = np.sum(new_seg_slice != true_seg)
+            if E !=1 : 
+              worst_error.append(E)
             error.append(E)
-    return np.sum(error)/len(error)
+    return np.sum(error)/len(error),worst_error,N
 
 def evaluate_my_seg_total(root_train_folder_path):
     """
@@ -175,6 +184,8 @@ def evaluate_my_seg_total(root_train_folder_path):
       total_error: The sum of errors over all subjects.
     """
     total_error = 0
+    total_number_slices = 0
+    error_non_surrounded_case = []
     for index in os.listdir(root_train_folder_path):
         folder_path = os.path.join(root_train_folder_path, index)
         if os.path.isdir(folder_path):
@@ -183,59 +194,149 @@ def evaluate_my_seg_total(root_train_folder_path):
             DIR_SEGED = os.path.join(folder_path, file_segED)
             DIR_SEGES = os.path.join(folder_path, file_segES)
             file_list = [DIR_SEGED, DIR_SEGES]
-            total_error += evaluate_my_seg_one(file_list, index)
+            result =evaluate_my_seg_one(file_list, index) 
+            total_error += result[0]
+            total_number_slices += result[2]
+            error_non_surrounded_case.extend(result[1])
+            
+    #print(np.mean(error_non_surrounded_case),np.min(error_non_surrounded_case),np.max(error_non_surrounded_case))
+    #print(f"total number of slices", total_number_slices)
     return total_error
 
-def debug_one(file_name, slice_index):
+
+def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir="./debug_outputs"):
     """
-    Debugs the segmentation for a single file and specified slice.
-    Loads the segmentation file, shows the original segmentation on that slice,
-    applies my_seg to generate the new segmentation, computes the error, and displays
-    both the true and new segmentation images.
+    Debugs and visualizes the segmentation for a single file and slice.
+    Optionally saves figures for LaTeX integration.
     
     Parameters:
-      file_name: Path to the segmentation file.
-      slice_index: Index of the slice to debug.
-    
+      seg_file_name: Path to the segmentation file (*.nii or *.nii.gz)
+      slice_index: Slice index to visualize
+      save_fig: If True, saves figures instead of or in addition to displaying them
+      display: If True, shows the figures on screen
+      save_dir: Directory where to save images if save_fig is True
+      
     Returns:
-      error: The number of differing pixels on the specified slice.
+      error: Number of differing pixels between true and predicted segmentations.
     """
-    seg_nii = nibabel.load(file_name)
+    # Load segmentation
+    seg_nii = nib.load(seg_file_name)
     seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
     num_slices = seg_data.shape[2]
     print(f"Number of slices: {num_slices}")
+
+    # Derive MRI filename
+    base_path, seg_filename = os.path.split(seg_file_name)
+    mri_filename = seg_filename.replace('_SEG', '')
+    mri_file_path = os.path.join(base_path, mri_filename)
     
-    labels, counts = np.unique(seg_data[:, :, slice_index], return_counts=True)
-    print(f"Labels: {labels}, counts: {counts} for slice {slice_index}")
-    
-    # Apply my_seg to obtain the new segmentation.
-    new_seg = my_seg(seg_data)
-    new_seg_slice = new_seg[:, :, slice_index]
-    
+    if not os.path.exists(mri_file_path):
+        raise FileNotFoundError(f"Original MRI file not found: {mri_file_path}")
+
+    # Load MRI image
+    mri_nii = nib.load(mri_file_path)
+    mri_data = np.asanyarray(mri_nii.dataobj, dtype=np.float32)
+    background_slice = mri_data[:, :, slice_index]
+    background_slice = background_slice / np.max(background_slice)  # Normalize for display
+
+    # Extract true and predicted segmentations
     true_seg = seg_data[:, :, slice_index]
-    E = np.sum(new_seg_slice != true_seg)
+    new_seg = my_seg(seg_data)[:, :, slice_index]
+
+    # Compute error
+    E = np.sum(new_seg != true_seg)
     if E > 0:
-        print(f"Error at slice {slice_index}, file {file_name}: {E} differing pixels")
+        print(f"Error at slice {slice_index}, file {seg_file_name}: {E} differing pixels")
     
-    plt.figure()
-    plt.imshow(true_seg, cmap='gray')
-    plt.title("True Segmentation")
-    plt.show()
-    
-    plt.figure()
-    plt.imshow(new_seg_slice, cmap='gray')
-    plt.title("New Segmentation")
-    plt.show()
-    
+    # Define labels and colors
+    label_map = {
+        0: "Background",
+        1: "LV",
+        2: "RV",
+        3: "Myocardium"
+    }
+    color_map = {
+        0: "black",
+        1: "red",
+        2: "blue",
+        3: "green"
+    }
+
+    def save_or_show_segmentation(background, seg_slice, title, save_name=None):
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.imshow(background, cmap='gray', interpolation='none')
+
+        # Build colored segmentation
+        colored_seg = np.zeros(seg_slice.shape + (3,), dtype=np.float32)
+        for label_id, color_name in color_map.items():
+            mask = (seg_slice == label_id)
+            color_rgb = np.array(mcolors.to_rgb(color_name))
+            colored_seg[mask] = color_rgb
+
+        ax.imshow(colored_seg, alpha=0.5, interpolation='none')
+        ax.axis("off")
+        plt.tight_layout()
+
+        if save_fig and save_name:
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            path = os.path.join(save_dir, save_name)
+            plt.savefig(path, dpi=300, bbox_inches='tight')
+            print(f"Saved figure to {path}")
+
+        if display:
+            plt.title(title)
+            plt.show()
+        else:
+            plt.close()
+
+    def save_legend(save_name="legend.png"):
+        fig_legend, ax_legend = plt.subplots(figsize=(3, 2))
+
+        handles = [
+            mpatches.Patch(color=color_map[label_id], label=label_map[label_id])
+            for label_id in color_map
+        ]
+        ax_legend.legend(handles=handles, loc='center')
+        ax_legend.axis('off')
+        plt.tight_layout()
+
+        if save_fig:
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            path = os.path.join(save_dir, save_name)
+            plt.savefig(path, dpi=300, bbox_inches='tight',transparent=True)
+            print(f"Saved legend to {path}")
+
+        if display:
+            plt.show()
+        else:
+            plt.close()
+
+    # Display or save both segmentations
+    save_or_show_segmentation(background_slice, true_seg, "True Segmentation Overlay", save_name="true_seg.png")
+    save_or_show_segmentation(background_slice, new_seg, "Predicted Segmentation Overlay", save_name="predicted_seg.png")
+    save_legend()
+
     return E
 
 
-# To evaluate on all subjects in the Train folder:
+
+# # To evaluate on all subjects in the Train folder:
+
 # BASE_DIR = os.getcwd()
 # TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
 # total_error = evaluate_my_seg_total(TRAIN_DIR)
 # print("Mean dice over the trainning:", total_error)
 
-# To debug a single file and slice:
-#debug_error = debug_one("/Users/rplanchon/Documents/telecom/IMA/S2/IMA205/Challenge/CardiacPathoPrediction/Dataset/Train/069/069_ES_SEG.nii", 0)
-#print("Debug slice error:", debug_error)
+
+# closed example
+
+# debug_error = debug_one("/Users/rplanchon/Documents/telecom/IMA/S2/IMA205/Challenge/CardiacPathoPrediction/Dataset/Train/020/020_ES_SEG.nii",5,save_fig=False)
+# print("Debug slice error:", debug_error)
+
+
+# Non closed example
+
+# debug_error = debug_one("/Users/rplanchon/Documents/telecom/IMA/S2/IMA205/Challenge/CardiacPathoPrediction/Dataset/Train/029/029_ED_SEG.nii",0,save_fig=True)
+# print("Debug slice error:", debug_error)

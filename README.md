@@ -65,3 +65,10 @@ Bayesian search
 
 
 In order to really compare different results / model I really need to take into account how much the model is sure of himself. Entropy seems a good measure. The more the model have multiple high probabilities the more it is uncertain.
+
+
+
+![alt text](image.png)
+
+
+![alt text](image-1.png)
