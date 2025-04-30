@@ -1,0 +1,145 @@
+import os
+import numpy as np
+import pandas as pd
+import SimpleITK as sitk
+from radiomics import featureextractor
+import itertools
+import re
+
+
+# Py-radiomics extractor that extract radiomic features.
+extractor = featureextractor.RadiomicsFeatureExtractor()
+extractor.settings['additionalInfo'] = False
+extractor.disableAllImageTypes()
+extractor.enableImageTypeByName('Original')
+extractor.disableAllFeatures()
+
+# Feature que l'on veut : 
+extractor.enableFeatureClassByName('shape') # Some shape features (volume, sphericity etc)
+extractor.enableFeatureClassByName('firstorder') # Some signal features
+extractor.enableFeatureClassByName("glcm")
+
+
+# I just did that to be have clean folder depending on feature selected.
+output_string = ""
+for cls, feats in extractor.enabledFeatures.items():
+    output_string += f"{cls}_" 
+output_string += "features"
+    
+
+print(output_string)
+
+BASE       = os.getcwd()
+TRAIN_DIR  = os.path.join(BASE, "Dataset", "Train")
+TEST_DIR   = os.path.join(BASE, "Dataset", "SegTest")
+OUT_DIR    = os.path.join(BASE, "data",output_string)
+os.makedirs(OUT_DIR, exist_ok=True)
+
+def extract_per_patient(folder, sid):
+    rec = {"Id": sid}
+    for ph in ["ED", "ES"]:
+        img = sitk.ReadImage(os.path.join(folder, f"{sid}_{ph}.nii"))
+        msk = sitk.ReadImage(os.path.join(folder, f"{sid}_{ph}_seg.nii"))
+        for lbl,name in [(1,"RV"),(3,"LV"),(2,"MY")]:
+            try:
+                feats = extractor.execute(img, msk, label=lbl)
+                for k,v in feats.items():
+                    rec[f"{ph}_{name}_{k.replace('original_','')}"] = v
+            except ValueError:
+                # si jamais pas de label
+                # avec nos donnés en pratique on passe jamais dedans.
+                for k in extractor.enabledFeatures['shape']:
+                    rec[f"{ph}_{name}_{k}"] = np.nan
+    return rec
+
+def all_patient(src_dir):
+    rows = [extract_per_patient(os.path.join(src_dir,s), s)
+            for s in os.listdir(src_dir) if os.path.isdir(os.path.join(src_dir,s))]
+    df = pd.DataFrame(rows)
+    return df
+
+def add_ratios(df,Train=True):
+    
+    # on récupère uniquement les features qui correspondent à des volume.
+    # Dans les différents papiers la fractions d' ejection qui est un rapport revient souvent comme une feature importante. 
+    # D'où l'idée de calculer différente ratio
+    
+    vol_cols = [c for c in df.columns if re.search(r'MeshVolume$', c)]
+    print(vol_cols)
+    
+    # on utilise combinations et pas product de itertools pour ne pas calculer A/B et B/A.
+    # Car ce n'est pas très utile d'avoir des features redondantes comme ça
+    ratio_frames = {}         
+
+    for a,b in itertools.combinations(vol_cols, 2):
+        name = f"{a}_over_{b}"              
+        ratio = np.divide(df[a], df[b])
+        ratio_frames[name] = ratio
+
+    # merge 
+    df = pd.concat([df, pd.DataFrame(ratio_frames)], axis=1)
+
+    return df
+ 
+
+
+
+def compute_body_surface_area(height,weight): 
+    "Return the body surface area from height and weight. (Formula of Du Bois)"
+    
+    return 0.007184 * (height**0.725 )* (weight**0.425)
+
+def add_body_surface_area_feature(df : pd.DataFrame ,name_column_height = "Height",name_column_weight = "Weight"):
+    # Add for each row the BSA associated.
+    
+    if (name_column_height and name_column_weight in df.columns) and ("body_surface" not in df.columns)  :
+        df["body_surface"] = compute_body_surface_area(df[name_column_height],df[name_column_weight])
+        #print("Body surface area feature added")
+    else : 
+        print("provide a dataframe with a height and weight feature")
+       
+
+
+def add_meta_data(df,Train= True):  
+    if Train : 
+        metaData = pd.read_csv(os.path.join(BASE,"Dataset","metaDataTrain.csv"))
+        metaData.drop(columns=["Category"],inplace=True)
+        # print(metaData.head())
+    else :
+        metaData = pd.read_csv(os.path.join(BASE,"Dataset","metaDataTest.csv"))
+        # print(metaData.head())
+    
+    # I had some issues with int index as 001 can be translated to 1..
+    # So I needed to ensure all Id have the same size by filling from the left 0s .
+    df["Id"] = df["Id"].astype(str).str.zfill(3)  
+    metaData["Id"] = metaData["Id"].astype(str).str.zfill(3)
+    df = df.merge(metaData, on="Id", how="left")
+    
+    add_body_surface_area_feature(df)           
+    df.drop(columns=["Height", "Weight"], errors="ignore", inplace=True)
+    
+    return df
+
+
+df_train_all_features = all_patient(TRAIN_DIR)
+df_test_all_features = all_patient(TEST_DIR)
+
+
+
+df_train = add_ratios(df_train_all_features,Train=True)
+df_test = add_ratios(df_test_all_features,Train=False)
+
+
+
+df_train = add_meta_data(df_train,Train=True)
+df_test = add_meta_data(df_test,Train=False)
+
+
+
+df_train.to_csv(os.path.join(OUT_DIR,"TrainningDataset.csv"), index=False)
+df_test.to_csv(os.path.join(OUT_DIR,"TestingDataset.csv"), index=False)
+
+# Label dataset 
+
+y = pd.read_csv(os.path.join(BASE,"Dataset","metaDataTrain.csv"), usecols=["Id", "Category"])
+y.to_csv(os.path.join(OUT_DIR,"TrainningDatasetCategory.csv"), index=False)

@@ -1,0 +1,135 @@
+import os 
+import itertools
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy.cluster.hierarchy as sch
+from sklearn.feature_selection import VarianceThreshold, SelectFromModel, RFE
+from sklearn.ensemble import RandomForestClassifier         
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+BASE_DIR = os.getcwd()
+
+# look in the data folder and take the feature you want to reduced.
+FEATURES_TO_ANALYSE = "shape_firstorder_glcm_features"
+# Shape + texture features 
+DATA_DIR = os.path.join(BASE_DIR,"data",FEATURES_TO_ANALYSE)
+
+TRAIN_DIR = os.path.join(DATA_DIR,"TrainningDataset.csv")
+LABEL_DIR = os.path.join(DATA_DIR,"TrainningDatasetCategory.csv")
+TEST_DIR = os.path.join(DATA_DIR,"TestingDataset.csv")
+
+
+print(TRAIN_DIR)
+
+X = pd.read_csv(TRAIN_DIR)                 # contient la colonne 'Id'
+y = pd.read_csv(LABEL_DIR)                 # contient 'Id' et 'Label'
+
+y = y.set_index("Id")["Category"]             # Series indexée par Id
+X = X.sample(n=X.shape[0])
+y = y.reindex(X["Id"])
+
+X_train = X.drop(columns=["Id"])
+y_train = y.drop(columns=["Id"])
+
+# Affichage de la Heat Map corrélation : on cherche à identifier les variables trop corrélés afin de les enlevés.
+# En fonction du nombre de feature qu'on prend changer la figsize pour pouvoir voir.
+
+scaler = StandardScaler()
+scaled_features = pd.DataFrame(scaler.fit_transform(X_train),columns=X_train.columns)
+
+
+corr = scaled_features.corr(numeric_only=True)
+fig, ax = plt.subplots(figsize=(44, 32))
+cax = ax.imshow(corr, vmin=-1, vmax=1, interpolation="nearest")
+ax.set_xticks(range(len(corr.columns)))
+ax.set_yticks(range(len(corr.columns)))
+ax.set_xticklabels(corr.columns, rotation=90, fontsize=6)
+ax.set_yticklabels(corr.columns, fontsize=6)
+fig.colorbar(cax, fraction=0.046, pad=0.04)
+plt.title("Heat-map corrélation (Train)")
+plt.tight_layout()
+plt.show()
+
+linkage_matrix = sch.linkage(1 - corr, method='average')
+
+
+# We plot what is called a dendrogram to vizualize relationship between the different features.
+plt.figure(figsize=(30, 20))
+sch.dendrogram(linkage_matrix, labels=scaled_features.columns, orientation='top', distance_sort='descending', show_leaf_counts=True)
+plt.title("Hierarchical Clustering of Features")
+plt.xlabel("Features")
+plt.ylabel("Distance")
+plt.show()
+
+# On retire les features avec une Variance trop faible. Pour l'instant je supprime juste les features constantes.
+
+var_sel = VarianceThreshold(threshold=1e-3)     
+X1 = var_sel.fit_transform(X_train)
+selected_var = X_train.columns[var_sel.get_support()]
+print(f"Number of features removed bc of too small variance : {len(X_train.columns) - len(selected_var)}")
+
+
+
+def drop_high_corr(df, threshold=0.9):
+    c = df.corr(numeric_only=True).abs()
+    upper = c.where(np.triu(np.ones(c.shape), k=1).astype(bool))
+    to_drop = [col for col in upper.columns if any(upper[col] > threshold)]
+    return df.drop(columns=to_drop), to_drop
+
+X2_df, highly_corr = drop_high_corr(pd.DataFrame(X1, columns=selected_var), threshold=0.90)
+
+print(f"Features retirées pour avec critère de corrélation > 0.9 : {len(highly_corr)}")
+print(f"Nombre de features restantes : {X2_df.shape[1]}")
+
+
+
+# To further reduce the number of features I used a method called Recursive feature elimination. 
+# This method trains a model (I choose RF as this is the model we will use after), 
+# compute feature importance,
+# eliminate the least important ones
+# And redo this process until reaching the number of feature wanted
+
+N_features = 15
+
+rf   = RandomForestClassifier(n_estimators=500 ,n_jobs=-1)
+# retirer 10 % des variables à chaque fit
+step = max(1, int(0.1 * X2_df.shape[1]))     
+rfe  = RFE(estimator=rf, n_features_to_select=N_features, step=step) 
+
+rfe.fit(X2_df, y_train)
+selected_final = X2_df.columns[rfe.get_support()]
+print(f"Nombres de features retenues ({len(selected_final)}) :")
+print(selected_final.tolist())
+
+
+
+pd.Series(selected_final).to_csv(os.path.join(DATA_DIR, "SelectedFeatures.csv"), index=False, header=["Feature"])
+
+X_train_reduced = X[["Id"] + selected_final.tolist()]
+
+
+X_train_reduced.to_csv(os.path.join(DATA_DIR, "TrainningDataset_reduced.csv"), index=False)
+
+
+
+# use the same feature for the test set. 
+X_test = pd.read_csv(os.path.join(DATA_DIR,"TestingDataset.csv"))
+X_test_reduced = pd.DataFrame(X_test,columns=X_train_reduced.columns)
+X_test_reduced.to_csv(os.path.join(DATA_DIR, "TestingDataset_reduced.csv"), index=False)
+
+
+
+
+pipe = Pipeline([
+    ("scale", StandardScaler()),
+    ("clf", rf)
+])
+cv = StratifiedKFold(n_splits=5, shuffle=True)
+scores = cross_val_score(pipe,X_train_reduced.drop(columns=["Id"]),y_train.squeeze(),cv=cv, scoring="accuracy")
+
+print("mean accuracy :", scores.mean(), "±", scores.std())
+
+
