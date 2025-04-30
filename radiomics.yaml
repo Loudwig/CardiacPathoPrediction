@@ -1,0 +1,36 @@
+# ACDC‐optimized PyRadiomics parameters
+
+## General
+enableCExtensions: true
+force2D: false
+correctMask: true
+padDistance: 5
+
+## Resampling
+# keep native slice thickness (≈8–10 mm) but isotropic in‐plane
+resampledPixelSpacing: [1.0, 1.0, 8.0]
+interpolator: 'sitkBSpline'
+
+## Intensity normalization & discretization
+normalize: true
+normalizeScale: 100      # scale z-scores to ±100
+normalizeClip: 4        # clip to ±4σ
+# MRI has arbitrary units → use fixed bin count
+binCount: 64
+
+## Image filters
+imageType:
+  Original: {}
+  LoG:
+    sigma: [1.0, 2.0]
+  Wavelet: {}
+
+## Features to extract
+featureClass:
+  shape:        # 3D volumes of RV/LV/Myocardium
+  firstorder:   # histogram metrics
+  glcm:         # co-occurrence textures
+  glrlm:        # run-length textures
+  glszm:        # size-zone textures
+  gldm:         # dependence textures
+  ngtdm:        # neighborhood grey-tone differences

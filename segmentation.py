@@ -321,11 +321,55 @@ def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir
     return E
 
 
+import shutil
+
+def segment_and_save_test_set(input_test_folder, output_folder):
+    """
+    Segments *_ED_SEG.nii and *_ES_SEG.nii files in the input_test_folder and saves the results
+    in a mirrored folder structure under output_folder. All other files are copied as-is.
+
+    Parameters:
+        input_test_folder (str): Path to the original Test folder.
+        output_folder (str): Path where the new segmented TEST folder will be created.
+    """
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for index in os.listdir(input_test_folder):
+        subject_path = os.path.join(input_test_folder, index)
+        if os.path.isdir(subject_path):
+            output_subject_path = os.path.join(output_folder, index)
+            os.makedirs(output_subject_path, exist_ok=True)
+
+            for file in os.listdir(subject_path):
+                input_path = os.path.join(subject_path, file)
+                output_path = os.path.join(output_subject_path, file)
+
+                if file.endswith('_ED_seg.nii') or file.endswith('_ES_seg.nii'):
+                    # Process segmentation files
+                    seg_nii = nib.load(input_path)
+                    seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
+                    new_seg = my_seg(seg_data)
+
+                    new_nii = nib.Nifti1Image(new_seg, affine=seg_nii.affine, header=seg_nii.header)
+                    nib.save(new_nii, output_path)
+                    print(f"Segmented and saved: {output_path}")
+                else:
+                    # Copy non-segmentation files
+                    shutil.copy2(input_path, output_path)
+                    print(f"Copied original image: {output_path}")
+
+
+
+
 
 # # To evaluate on all subjects in the Train folder:
 
-# BASE_DIR = os.getcwd()
-# TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+BASE_DIR = os.getcwd()
+TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+TEST_DIR = os.path.join(BASE_DIR,"Dataset/Test")
+SEGMENTED_TEST_DIR = os.path.join(BASE_DIR,"Dataset/SegTest") 
+segment_and_save_test_set(TEST_DIR,SEGMENTED_TEST_DIR)
 # total_error = evaluate_my_seg_total(TRAIN_DIR)
 # print("Mean dice over the trainning:", total_error)
 
