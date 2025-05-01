@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.utils.validation import check_is_fitted
 from typing import List
 
-
+# Can be added in pipeline if you want.
 class GaussianNoiseInjector(BaseEstimator, TransformerMixin):
     
     ### Add Gaussian noise into features proportionally to each feature's std.

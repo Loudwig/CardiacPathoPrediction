@@ -11,6 +11,8 @@ from matplotlib.patches import Circle
 import nibabel as nib
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
+import shutil
+
 
 def compute_dice_metric(true_seg,pred_seg,label = 3):
     # Create binary masks for the specific label
@@ -320,18 +322,11 @@ def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir
 
     return E
 
-
-import shutil
-
 def segment_and_save_test_set(input_test_folder, output_folder):
-    """
-    Segments *_ED_SEG.nii and *_ES_SEG.nii files in the input_test_folder and saves the results
-    in a mirrored folder structure under output_folder. All other files are copied as-is.
-
-    Parameters:
-        input_test_folder (str): Path to the original Test folder.
-        output_folder (str): Path where the new segmented TEST folder will be created.
-    """
+    # Segment the test entire test folder. 
+    # Add the left ventricule labels
+    # Create a new test set in ouput folder location where the segmentation is completed.
+    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -359,19 +354,17 @@ def segment_and_save_test_set(input_test_folder, output_folder):
                     shutil.copy2(input_path, output_path)
                     print(f"Copied original image: {output_path}")
 
-
-
-
-
 # # To evaluate on all subjects in the Train folder:
-
-BASE_DIR = os.getcwd()
-TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
-TEST_DIR = os.path.join(BASE_DIR,"Dataset/Test")
-SEGMENTED_TEST_DIR = os.path.join(BASE_DIR,"Dataset/SegTest") 
-segment_and_save_test_set(TEST_DIR,SEGMENTED_TEST_DIR)
+# BASE_DIR = os.getcwd()
+# TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+# TEST_DIR = os.path.join(BASE_DIR,"Dataset/Test")
 # total_error = evaluate_my_seg_total(TRAIN_DIR)
 # print("Mean dice over the trainning:", total_error)
+
+# To compute the new Testing folder 
+
+# SEGMENTED_TEST_DIR = os.path.join(BASE_DIR,"Dataset/SegTest") 
+# segment_and_save_test_set(TEST_DIR,SEGMENTED_TEST_DIR)
 
 
 # closed example

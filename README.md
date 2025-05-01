@@ -1,74 +1,48 @@
+# Guide d’utilisation du projet
 
-### 1. Trouver des features cohérents et les caluler.
-    - volume des deux ventricules et mycordium.
-        
-### 2. Segmentation ventricule gauche pour le test.
+**Étudiant :** Planchon Romain
 
-Empiriquement on voit que le ventricule gauche est situé au milieu de la myocardium. On va donc prendre avantage que dans le test la mycordium est déjà segmenter.  
+---
 
--> on va déja vérifier la donné. 
+## À lire avant d’exécuter les scripts
 
+1. **Organisation des fichiers**  
+   Placez `main.ipynb` au même niveau que le dossier `Dataset`, qui doit contenir les sous-dossiers `Test` et `Train`.
 
+2. **Fonctionnement général de `main.ipynb`**  
+   a. **Segmentation**  
+   - La segmentation du ventricule gauche (LV) est effectuée en premier.  
+   - Un nouveau dossier `SegTest` est créé et contient la même chose que Test avec cette fois une segmentation complète.  
 
-Ok 
+   - Ce dossier servira de base pour la suite du traitement.
+   
+   - Pour voir les cas particulier de la segmentation aller dans le fichier `segmentation.py` et décommenter les exemples
 
-###  Les features. 
+   b. **Extraction des features (py-radiomics)**  
+   - Activez ou désactivez les classes de features souhaitées en commentant/décommentant les lignes ci-dessous :
 
-1) volume de tout + Masse + taille. + dif temporel. 
+     ```python
+     # Features à extraire :
+     extractor.enableFeatureClassByName('shape')      # Forme (volume, sphéricité…)
+     extractor.enableFeatureClassByName('firstorder') # Statistiques de premier ordre
+     extractor.enableFeatureClassByName('glcm')       # Gray Level Co-occurrence Matrix
+     extractor.enableFeatureClassByName('glrlm')      # Gray Level Run Length Matrix
+     ```
 
-Ce que ne peut pas faire un random forest c'est rapport donc il faut que dans features il y ait des rapport. On va faire ça
-J'ai mis au début la difference entre les deux timings mais en fait un random forest peut trouver ça aussi (a-b > 4 ) random forest peut faire a> 6 b<2 donc pas besoin je les enlèves 
-{'classifier__max_depth': 10, 'classifier__max_features': 'sqrt', 'classifier__min_samples_leaf': 1, 'classifier__min_samples_split': 2, 'classifier__n_estimators': 100}
-0.85 0.07071067811865474
-1.0 0.0
+   - Les jeux de données extraits seront sauvegardés dans :
+     - `data/shape_glcm_features` si vous avez sélectionné `shape` et `glcm`
+     - `data/shape_firstorder_glrlm_features` si vous avez désélectionné `glrlm`
 
-I added the ratios. Now I have got around 30 features.
+   - Ces chemins sont automatiquement utilisés pour charger les jeux de données.
 
-to do : 
+   c. **Réduction des features**  
+   - Seuil de variance  
+   - Seuil de corrélation  
+   - Sélection mRMR (par défaut 50 features)
 
-    rapport de l'intersection sur l'union entre les deux temporalité
+   d. **Modèle de référence (baseline)**  
+   - Entraînement et évaluation du modèle de base sur les données réduites.
 
+---
 
-
-
-### 3. Le point majeur de ce challenge. Il n'y a pas beacoup de données. 
-
-I will try data augmentation to see the results.
-
-I know what i am doing wrong... In my cross val as i have data and a bit of noisy data that is almost the same the score don't really mean something as it is like trainning on it..
-
-    it needs to be added in the pipeline. The cross val will select a the trainning and apply data augmentation.
-
-
-Mixture model. 
-
-By analysing the result of the predicted proba of my model. I found that the only case where the model had a hard time was between class 2 and 3. SO I thought of creating a separate model that could handle just this. When predicted proba are two low for this class use a differente model that is specialized in separtaing this two class only. SO I will train another model to do taht. Problem is that data is even further reduced. only 40 samples then.
-
-
-
-
-ne pas overfitter.
-
-
-
-problème des colonnes correler ou bien des colonnes tel que a tres proche de 1/a. Je me dis que lorsque qu'on boostrap on a moins de chance de "perdre" ces colonnes et ducoup c'est pas bien.
-
-
-On vise ici le 1 d'accuracy. donc on est un peut obliger d'avoir plus de 0.99 d'accuracy sur un cv sur le train. Mais il ne faut pas overfitter.
-
-Au début j'avais force min samples split à 2 pour éviter un gros overfitting. Mais j'ai l'impression qu'avec un RF et mes features il y a des outliers qui nécessite un min samples split de 1.
-
-Souvent les probabilités qui sont proche de 0.5 arrive entre les classes 2 et 3 donc je me suis dit que j'allais entrainer un autre modele (pas du même type sinon il allait faire la même chose, les mêmes séparations) uniquement pour s'entrainer à séparer ces deux classes.
-
-
-Bayesian search
-
-
-In order to really compare different results / model I really need to take into account how much the model is sure of himself. Entropy seems a good measure. The more the model have multiple high probabilities the more it is uncertain.
-
-
-
-![alt text](image.png)
-
-
-![alt text](image-1.png)
+> **Remarque :** Tous les autres notebooks du dossier peuvent également être utilisés librement pour compléter ou approfondir l’analyse.  
