@@ -1,0 +1,11 @@
+Feature
+ED_RV_firstorder_Energy
+ED_RV_firstorder_Entropy
+ED_LV_firstorder_Energy
+ED_LV_firstorder_Kurtosis
+ED_MY_firstorder_Kurtosis
+ES_RV_firstorder_Energy
+ES_RV_firstorder_Kurtosis
+ES_LV_firstorder_Energy
+ES_LV_firstorder_Kurtosis
+ES_LV_firstorder_Skewness

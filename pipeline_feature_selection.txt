@@ -9,11 +9,13 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.feature_selection import SelectKBest, f_classif
+
 
 BASE_DIR = os.getcwd()
 
 # look in the data folder and take the feature you want to reduced.
-FEATURES_TO_ANALYSE = "shape_firstorder_glcm_features"
+FEATURES_TO_ANALYSE = "shape_features"
 # Shape + texture features 
 DATA_DIR = os.path.join(BASE_DIR,"data",FEATURES_TO_ANALYSE)
 
@@ -24,15 +26,20 @@ TEST_DIR = os.path.join(DATA_DIR,"TestingDataset.csv")
 
 print(TRAIN_DIR)
 
-X = pd.read_csv(TRAIN_DIR)                 # contient la colonne 'Id'
-y = pd.read_csv(LABEL_DIR)                 # contient 'Id' et 'Label'
+X = pd.read_csv(TRAIN_DIR)  # contient "Id"
+y = pd.read_csv(LABEL_DIR)  # contient "Id" et "Category"
 
-y = y.set_index("Id")["Category"]             # Series indexée par Id
-X = X.sample(n=X.shape[0])
-y = y.reindex(X["Id"])
+# S'assurer que les ID sont bien des chaînes formatées
+X["Id"] = X["Id"].astype(str).str.zfill(3)
+y["Id"] = y["Id"].astype(str).str.zfill(3)
+
+# Aligner y sur l’ordre de X
+y = y.set_index("Id").loc[X["Id"]].reset_index()
+y_train = y["Category"]
+
 
 X_train = X.drop(columns=["Id"])
-y_train = y.drop(columns=["Id"])
+
 
 # Affichage de la Heat Map corrélation : on cherche à identifier les variables trop corrélés afin de les enlevés.
 # En fonction du nombre de feature qu'on prend changer la figsize pour pouvoir voir.
@@ -42,15 +49,17 @@ scaled_features = pd.DataFrame(scaler.fit_transform(X_train),columns=X_train.col
 
 
 corr = scaled_features.corr(numeric_only=True)
-fig, ax = plt.subplots(figsize=(44, 32))
-cax = ax.imshow(corr, vmin=-1, vmax=1, interpolation="nearest")
+fig, ax = plt.subplots(figsize=(26, 20))
+cax = ax.imshow(abs(corr), vmin=0, vmax=1, interpolation="nearest")
 ax.set_xticks(range(len(corr.columns)))
 ax.set_yticks(range(len(corr.columns)))
-ax.set_xticklabels(corr.columns, rotation=90, fontsize=6)
-ax.set_yticklabels(corr.columns, fontsize=6)
+ax.set_xticklabels(corr.columns, rotation=90, fontsize=7)
+ax.set_yticklabels(corr.columns, fontsize=7)
 fig.colorbar(cax, fraction=0.046, pad=0.04)
-plt.title("Heat-map corrélation (Train)")
+plt.title("Shape features Heat-map corrélation")
 plt.tight_layout()
+#fig.savefig("heatmap_corr_glrlm_f.png", dpi=300, transparent=True, bbox_inches="tight")
+
 plt.show()
 
 linkage_matrix = sch.linkage(1 - corr, method='average')
@@ -72,43 +81,56 @@ selected_var = X_train.columns[var_sel.get_support()]
 print(f"Number of features removed bc of too small variance : {len(X_train.columns) - len(selected_var)}")
 
 
-
+T = 0.92
 def drop_high_corr(df, threshold=0.9):
     c = df.corr(numeric_only=True).abs()
     upper = c.where(np.triu(np.ones(c.shape), k=1).astype(bool))
     to_drop = [col for col in upper.columns if any(upper[col] > threshold)]
     return df.drop(columns=to_drop), to_drop
 
-X2_df, highly_corr = drop_high_corr(pd.DataFrame(X1, columns=selected_var), threshold=0.90)
+X2_df, highly_corr = drop_high_corr(pd.DataFrame(X1, columns=selected_var), threshold=T)
 
-print(f"Features retirées pour avec critère de corrélation > 0.9 : {len(highly_corr)}")
+print(f"Features retirées pour avec critère de corrélation > {T} : {len(highly_corr)}")
 print(f"Nombre de features restantes : {X2_df.shape[1]}")
 
 
 
-# To further reduce the number of features I used a method called Recursive feature elimination. 
-# This method trains a model (I choose RF as this is the model we will use after), 
-# compute feature importance,
-# eliminate the least important ones
-# And redo this process until reaching the number of feature wanted
+# Séparer les features par famille
+shape_feats = [col for col in X2_df.columns if "shape" in col]
+first_feats = [col for col in X2_df.columns if "firstorder" in col]
+glcm_feats  = [col for col in X2_df.columns if "glcm" in col]
+glrlm_feats = [col for col in X2_df.columns if "glrlm" in col] 
 
-N_features = 15
+N_shape = 15
+N_first = 5
+N_glrlm = 5
+N_glcm =  5
 
-rf   = RandomForestClassifier(n_estimators=500 ,n_jobs=-1)
-# retirer 10 % des variables à chaque fit
-step = max(1, int(0.1 * X2_df.shape[1]))     
-rfe  = RFE(estimator=rf, n_features_to_select=N_features, step=step) 
+def select_kbest(X, y, columns, k):
+    if not columns or k == 0:
+        return []
+    k = min(k, len(columns)) 
+    selector = SelectKBest(score_func=f_classif, k=k)
+    selector.fit(X[columns], y)
+    return list(np.array(columns)[selector.get_support()])
 
-rfe.fit(X2_df, y_train)
-selected_final = X2_df.columns[rfe.get_support()]
-print(f"Nombres de features retenues ({len(selected_final)}) :")
-print(selected_final.tolist())
 
+selected_shape = select_kbest(X2_df, y_train, shape_feats, N_shape)
+selected_first = select_kbest(X2_df, y_train, first_feats, N_first)
+selected_glcm  = select_kbest(X2_df, y_train, glcm_feats, N_glcm)
+selected_glrlm = select_kbest(X2_df, y_train, glrlm_feats, N_glrlm) 
+
+selected_final = selected_shape + selected_first + selected_glcm + selected_glrlm
+print("Features retenues  :", selected_final)
+
+
+selected_final = X2_df.columns.to_list()
+print(selected_final)
 
 
 pd.Series(selected_final).to_csv(os.path.join(DATA_DIR, "SelectedFeatures.csv"), index=False, header=["Feature"])
 
-X_train_reduced = X[["Id"] + selected_final.tolist()]
+X_train_reduced = X[["Id"] + selected_final]
 
 
 X_train_reduced.to_csv(os.path.join(DATA_DIR, "TrainningDataset_reduced.csv"), index=False)
@@ -116,12 +138,14 @@ X_train_reduced.to_csv(os.path.join(DATA_DIR, "TrainningDataset_reduced.csv"), i
 
 
 # use the same feature for the test set. 
+# Ensure that the test set uses the same 'Id' as the training set
+
 X_test = pd.read_csv(os.path.join(DATA_DIR,"TestingDataset.csv"))
 X_test_reduced = pd.DataFrame(X_test,columns=X_train_reduced.columns)
 X_test_reduced.to_csv(os.path.join(DATA_DIR, "TestingDataset_reduced.csv"), index=False)
 
 
-
+rf   = RandomForestClassifier(n_estimators=100 ,n_jobs=-1)
 
 pipe = Pipeline([
     ("scale", StandardScaler()),
