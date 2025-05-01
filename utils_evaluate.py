@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import entropy
 
-def certainty_score(probs: np.ndarray, normalize: bool = True) -> np.ndarray:
+def certainty_score(probs: np.ndarray, normalize: bool = True):
     """
     Compute a certainty score for each row of class-probabilities.
     """

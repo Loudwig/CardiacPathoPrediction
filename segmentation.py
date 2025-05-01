@@ -209,7 +209,7 @@ def evaluate_my_seg_total(root_train_folder_path):
 def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir="./debug_outputs"):
     """
     Debugs and visualizes the segmentation for a single file and slice.
-    Optionally saves figures for LaTeX integration.
+    Optionally saves figures
     
     Parameters:
       seg_file_name: Path to the segmentation file (*.nii or *.nii.gz)
@@ -225,7 +225,7 @@ def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir
     seg_nii = nib.load(seg_file_name)
     seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
     num_slices = seg_data.shape[2]
-    print(f"Number of slices: {num_slices}")
+    #print(f"Number of slices: {num_slices}")
 
     # Derive MRI filename
     base_path, seg_filename = os.path.split(seg_file_name)
