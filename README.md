@@ -4,14 +4,17 @@
 
 ---
 (le notebook qui reprend le fil du rapport est main.ipynb)
-(dependance dans requirements.txt)
+J'ai malheuresement oublier de mettre une seed de random donc les résultats que vous obtiendrez ne seront pas necessairement les mêmes que dans le rapport.
+
+(Les dependances de packages python sont dans requirements.txt)
 
 ## À lire avant d’exécuter les main.ipynb
 
 1. **Organisation des fichiers**  
    Placez `main.ipynb` au même niveau que le dossier `Dataset`, qui doit contenir les sous-dossiers `Test` et `Train`.
 
-2. **Fonctionnement général de `main.ipynb`**  
+
+2. **Plan général de `main.ipynb`**  
    a. **Segmentation**  
         - La segmentation du ventricule gauche (LV) est effectuée en premier.  
         - Un nouveau dossier `SegTest` est créé et contient la même chose que Test avec cette fois une segmentation complète.  
