@@ -1,24 +1,11 @@
 import numpy as np
 from scipy.stats import entropy
 
-def certainty_score(probs: np.ndarray, normalize: bool = True) -> np.ndarray:
+def certainty_score(probs: np.ndarray, normalize: bool = True):
     """
     Compute a certainty score for each row of class-probabilities.
-
-    Parameters
-    ----------
-    probs : array-like, shape (n_samples, n_classes)
-        The output of classifier.predict_proba(X).
-    normalize : bool, default=True
-        If True, normalize so score ∈ [0,1].
-
-    Returns
-    -------
-    cert : ndarray, shape (n_samples,)
-        Certainty score: 1 when model is maximally confident
-        (one class prob=1), 0 when maximally uncertain
-        (all classes equiprobable), or in between.
     """
+    
     probs = np.asarray(probs)
     # 1) compute entropy H for each sample
     #    scipy.stats.entropy sums p * log(p), default base=e

@@ -11,6 +11,8 @@ from matplotlib.patches import Circle
 import nibabel as nib
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
+import shutil
+
 
 def compute_dice_metric(true_seg,pred_seg,label = 3):
     # Create binary masks for the specific label
@@ -207,7 +209,7 @@ def evaluate_my_seg_total(root_train_folder_path):
 def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir="./debug_outputs"):
     """
     Debugs and visualizes the segmentation for a single file and slice.
-    Optionally saves figures for LaTeX integration.
+    Optionally saves figures
     
     Parameters:
       seg_file_name: Path to the segmentation file (*.nii or *.nii.gz)
@@ -223,7 +225,7 @@ def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir
     seg_nii = nib.load(seg_file_name)
     seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
     num_slices = seg_data.shape[2]
-    print(f"Number of slices: {num_slices}")
+    #print(f"Number of slices: {num_slices}")
 
     # Derive MRI filename
     base_path, seg_filename = os.path.split(seg_file_name)
@@ -320,14 +322,49 @@ def debug_one(seg_file_name, slice_index, save_fig=False, display=True, save_dir
 
     return E
 
+def segment_and_save_test_set(input_test_folder, output_folder):
+    # Segment the test entire test folder. 
+    # Add the left ventricule labels
+    # Create a new test set in ouput folder location where the segmentation is completed.
+    
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
+    for index in os.listdir(input_test_folder):
+        subject_path = os.path.join(input_test_folder, index)
+        if os.path.isdir(subject_path):
+            output_subject_path = os.path.join(output_folder, index)
+            os.makedirs(output_subject_path, exist_ok=True)
+
+            for file in os.listdir(subject_path):
+                input_path = os.path.join(subject_path, file)
+                output_path = os.path.join(output_subject_path, file)
+
+                if file.endswith('_ED_seg.nii') or file.endswith('_ES_seg.nii'):
+                    # Process segmentation files
+                    seg_nii = nib.load(input_path)
+                    seg_data = np.asanyarray(seg_nii.dataobj, dtype=np.uint8)
+                    new_seg = my_seg(seg_data)
+
+                    new_nii = nib.Nifti1Image(new_seg, affine=seg_nii.affine, header=seg_nii.header)
+                    nib.save(new_nii, output_path)
+                    print(f"Segmented and saved: {output_path}")
+                else:
+                    # Copy non-segmentation files
+                    shutil.copy2(input_path, output_path)
+                    print(f"Copied original image: {output_path}")
 
 # # To evaluate on all subjects in the Train folder:
-
 # BASE_DIR = os.getcwd()
 # TRAIN_DIR = os.path.join(BASE_DIR, "Dataset/Train")
+# TEST_DIR = os.path.join(BASE_DIR,"Dataset/Test")
 # total_error = evaluate_my_seg_total(TRAIN_DIR)
 # print("Mean dice over the trainning:", total_error)
+
+# To compute the new Testing folder 
+
+# SEGMENTED_TEST_DIR = os.path.join(BASE_DIR,"Dataset/SegTest") 
+# segment_and_save_test_set(TEST_DIR,SEGMENTED_TEST_DIR)
 
 
 # closed example
