@@ -6,3 +6,10 @@ Dataset/
 
 #ignore output
 output/
+
+# ignore old stuff
+oldstuff/
+
+.vscode/
+
+__pycache__
